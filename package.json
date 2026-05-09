@@ -1,0 +1,16 @@
+{
+  "name": "n2yo-proxy",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "build": "npm run -w backend build && npm run -w frontend build",
+    "dev": "npm run -w backend dev",
+    "dev:backend": "npm run -w backend dev",
+    "dev:frontend": "npm run -w frontend dev",
+    "typecheck": "npm run -w backend typecheck && npm run -w frontend typecheck"
+  }
+}

@@ -1,0 +1,26 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: n2yo-proxy-backend
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./backend/data:/app/data
+      - ./backend/config.json:/app/config.json
+    environment:
+      - PORT=4000
+      - N2YO_BASE_URL=https://api.n2yo.com
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_BACKEND_URL=http://backend:4000
+    container_name: n2yo-proxy-frontend
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
