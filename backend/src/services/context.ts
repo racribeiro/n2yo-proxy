@@ -18,12 +18,14 @@ export class AppContext {
   sweeper: SweeperService;
 
   constructor() {
-    const configFilePath = path.resolve(process.cwd(), 'backend/config.json');
-    const initialDb = new DbService(path.resolve('./backend/data/bootstrap.db'));
+    const configFilePath = process.env.CONFIG_PATH
+      ? path.resolve(process.env.CONFIG_PATH)
+      : path.resolve(process.cwd(), 'config.json');
+    const initialDb = new DbService(path.resolve(process.cwd(), 'data/bootstrap.db'));
     this.config = new ConfigService(configFilePath, initialDb);
 
     const dbPath = this.config.get().sqlite_db_path;
-    if (path.resolve(dbPath) !== path.resolve('./backend/data/bootstrap.db')) {
+    if (path.resolve(dbPath) !== path.resolve(process.cwd(), 'data/bootstrap.db')) {
       initialDb.db.close();
       this.db = new DbService(dbPath);
       this.config = new ConfigService(configFilePath, this.db);

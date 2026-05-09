@@ -5,7 +5,7 @@ import type { AppContext } from '../services/context.js';
 export const buildSatelliteRouter = (ctx: AppContext): Router => {
   const router = Router();
 
-  router.get('/above/:observerLat/:observerLng/:observerAlt/:searchRadius/:categoryId/', async (req, res, next) => {
+  router.get(['/above/:observerLat/:observerLng/:observerAlt/:searchRadius/:categoryId/', '/above/:observerLat/:observerLng/:observerAlt/:searchRadius/:categoryId/&apiKey=:apiKey'], async (req, res, next) => {
     try {
       const observerLat = Number(req.params.observerLat);
       const observerLng = Number(req.params.observerLng);
@@ -35,7 +35,7 @@ export const buildSatelliteRouter = (ctx: AppContext): Router => {
     }
   });
 
-  router.get('/tle/:satid', async (req, res, next) => {
+  router.get(['/tle/:satid', '/tle/:satid&apiKey=:apiKey'], async (req, res, next) => {
     try {
       const satid = Number(req.params.satid);
       const tle = await ctx.tle.getOrRefresh(satid);
@@ -48,7 +48,7 @@ export const buildSatelliteRouter = (ctx: AppContext): Router => {
     }
   });
 
-  router.get('/positions/:satid/:observerLat/:observerLng/:observerAlt/:seconds/', async (req, res, next) => {
+  router.get(['/positions/:satid/:observerLat/:observerLng/:observerAlt/:seconds/', '/positions/:satid/:observerLat/:observerLng/:observerAlt/:seconds/&apiKey=:apiKey'], async (req, res, next) => {
     try {
       const payload = await ctx.tle.computePositions({
         satid: Number(req.params.satid),
@@ -63,7 +63,7 @@ export const buildSatelliteRouter = (ctx: AppContext): Router => {
     }
   });
 
-  router.get('/visualpasses/:satid/:observerLat/:observerLng/:observerAlt/:days/:minVisibility/', async (req, res, next) => {
+  router.get(['/visualpasses/:satid/:observerLat/:observerLng/:observerAlt/:days/:minVisibility/', '/visualpasses/:satid/:observerLat/:observerLng/:observerAlt/:days/:minVisibility/&apiKey=:apiKey'], async (req, res, next) => {
     try {
       const payload = await ctx.tle.computeVisualPasses({
         satid: Number(req.params.satid),
@@ -79,7 +79,7 @@ export const buildSatelliteRouter = (ctx: AppContext): Router => {
     }
   });
 
-  router.get('/radiopasses/:satid/:observerLat/:observerLng/:observerAlt/:days/:minElevation/', async (req, res, next) => {
+  router.get(['/radiopasses/:satid/:observerLat/:observerLng/:observerAlt/:days/:minElevation/', '/radiopasses/:satid/:observerLat/:observerLng/:observerAlt/:days/:minElevation/&apiKey=:apiKey'], async (req, res, next) => {
     try {
       const payload = await ctx.tle.computeRadioPasses({
         satid: Number(req.params.satid),

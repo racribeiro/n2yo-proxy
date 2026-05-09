@@ -1,16 +1,18 @@
 .PHONY: build up down run logs
 
+PORT ?= 5173
+
 build:
-	docker compose build
+	PORT=$(PORT) docker compose build
 
 up:
-	docker compose up -d
+	PORT=$(PORT) docker compose up -d
 
 down:
-	docker compose down
+	PORT=$(PORT) docker compose down
 
 run:
-	docker compose up --build
+	PORT=$(PORT) docker compose up --build
 
 logs:
-	docker compose logs -f
+	PORT=$(PORT) docker compose logs -f

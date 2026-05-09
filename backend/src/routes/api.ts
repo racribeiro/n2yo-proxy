@@ -69,6 +69,9 @@ export const buildApiRouter = (ctx: AppContext): Router => {
       ...sweeper,
       stale,
       requestBudgets: ctx.budget.snapshot(),
+      n2yo: {
+        stats: ctx.n2yo.snapshotStats()
+      },
       tleCount: ctx.db.getAllTle().length,
       objectCount: ctx.catalog.list({}).length
     });

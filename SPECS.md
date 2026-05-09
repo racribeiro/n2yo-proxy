@@ -135,3 +135,24 @@
 * The local proxy itself has no equivalent per-verb quota because it should answer from the cached local dataset and persisted TLE catalog rather than spending an upstream transaction for each client request.
 
 ---
+
+### **Backlog**
+
+* **Sweep Logging Depth:** Expand backend sweep-phase logs to make each run auditable end-to-end.
+* **Run Correlation ID:** Add a `sweepRunId` to every log line produced during a sweep so one run can be traced across concurrent activity.
+* **Lifecycle Logs:** Emit explicit logs for `scheduled`, `started`, `skipped (not due)`, `completed`, `completed_with_errors`, and `failed`.
+* **Timing Logs:** Record duration for full run, per-grid-point `above` calls, TLE bootstrap batch windows, and listing backfill stage.
+* **Budget Snapshot Logs:** Log request-budget window state at sweep start and finish, including `used`, `remaining`, and deferred queue size per verb.
+* **Per-Point Outcome Logs:** For each `search_location`, log coordinates, category, attempt count, upstream status code, objects merged, and objects skipped.
+* **Retry/Backoff Logs:** On retryable failures (timeouts, 429, 5xx), log retry number, backoff delay, and final disposition.
+* **Partial Completion Logs:** If sweep exits early due to budget exhaustion or timeout, log which stages/locations were completed versus deferred.
+* **Data Freshness Logs:** Log stale/missing TLE counts before and after sweep plus counts refreshed in this run.
+* **Persistence Logs:** Log SQLite write summaries (rows inserted/updated) for objects, TLEs, categories, and sweep metadata.
+* **Error Context Logs:** Standardize error logs with verb, endpoint, params hash, timeout, and root cause category (`network`, `quota`, `upstream_4xx`, `upstream_5xx`, `parse`, `db`).
+* **Status Surface:** Include latest sweep logging summary fields in `/api/status` and `/api/sweeps` so frontend can show actionable run diagnostics.
+* **N2YO Activity Logging:** Add broader backend logs for all N2YO interactions (request query params, endpoint/verb usage counters, latency stats, success/error rates, timeout counts, and quota/budget consumption summaries).
+* **Globe Panel Wiring Fix:** Investigate and fix frontend globe panel wiring where the globe window renders blank without visible errors; verify data flow from API/filter selection to globe marker rendering and camera initialization.
+* **Real Earth Texture:** Replace placeholder/procedural Earth rendering with a real Earth texture asset (production-quality map) in the globe.
+* **Moon Texture:** Add a real texture map for the Moon and apply it to the Moon mesh in the globe panel.
+
+---

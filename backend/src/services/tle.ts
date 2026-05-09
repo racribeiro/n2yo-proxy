@@ -82,8 +82,8 @@ export class TleService {
       const gmst = satellite.gstime(date);
       const geo = satellite.eciToGeodetic(propagated.position as satellite.EciVec3<number>, gmst);
       positions.push({
-        satlatitude: satellite.radiansToDegrees(geo.latitude),
-        satlongitude: satellite.radiansToDegrees(geo.longitude),
+        satlatitude: satellite.degreesLat(geo.latitude),
+        satlongitude: satellite.degreesLong(geo.longitude),
         sataltitude: geo.height,
         azimuth: 0,
         elevation: 0,

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 
 import { fetchCategories, fetchConfig, fetchObjects, fetchStatus, fetchSweeps, patchConfig, runSweepNow } from './api/backend';
-import { getProxyApiKey, setProxyApiKey } from './api/client';
+import { getBackendUrl, getProxyApiKey, setBackendUrl, setProxyApiKey } from './api/client';
 import { GeneralConfigProvider } from './contexts/GeneralConfigContext';
 import { SelectedProvider } from './contexts/SelectedContext';
 import GlobePanel from './panels/GlobePanel';
@@ -9,6 +9,8 @@ import type { OrbitalObject, SelectedItem } from './types';
 
 const App: React.FC = () => {
   const [proxyKeyInput, setProxyKeyInput] = useState(getProxyApiKey());
+  const [n2yoKeyInput, setN2yoKeyInput] = useState('');
+  const [backendUrlInput, setBackendUrlInput] = useState(getBackendUrl());
   const [config, setConfig] = useState<any>(null);
   const [status, setStatus] = useState<any>(null);
   const [categories, setCategories] = useState<string[]>([]);
@@ -85,6 +87,17 @@ const App: React.FC = () => {
     await refreshAll();
   };
 
+  const saveN2yoKey = async () => {
+    await patchConfig({ n2yo_api_key: n2yoKeyInput });
+    setN2yoKeyInput('');
+    await refreshAll();
+  };
+
+  const saveBackendUrl = async () => {
+    setBackendUrl(backendUrlInput);
+    await refreshAll();
+  };
+
   const saveHome = async () => {
     await patchConfig({
       home_location: {
@@ -105,6 +118,16 @@ const App: React.FC = () => {
 
             <div className="panel">
               <h2>Access</h2>
+              <div className="row">
+                <label>Backend URL</label>
+                <input value={backendUrlInput} onChange={(e) => setBackendUrlInput(e.target.value)} />
+              </div>
+              <button className="secondary" onClick={saveBackendUrl}>Apply Backend URL</button>
+              <div className="row">
+                <label>N2YO API Key</label>
+                <input value={n2yoKeyInput} onChange={(e) => setN2yoKeyInput(e.target.value)} />
+              </div>
+              <button className="secondary" onClick={saveN2yoKey}>Save N2YO Key</button>
               <div className="row">
                 <label>Proxy API Key</label>
                 <input value={proxyKeyInput} onChange={(e) => setProxyKeyInput(e.target.value)} />
@@ -128,14 +151,30 @@ const App: React.FC = () => {
                   <label>Latitude</label>
                   <input
                     value={home.latitude}
-                    onChange={(e) => setConfig((v: any) => ({ ...v, home_location: { ...v.home_location, latitude: Number(e.target.value) } }))}
+                    onChange={(e) =>
+                      setConfig((v: any) => ({
+                        ...(v ?? {}),
+                        home_location: {
+                          ...(v?.home_location ?? {}),
+                          latitude: Number(e.target.value)
+                        }
+                      }))
+                    }
                   />
                 </div>
                 <div className="row">
                   <label>Longitude</label>
                   <input
                     value={home.longitude}
-                    onChange={(e) => setConfig((v: any) => ({ ...v, home_location: { ...v.home_location, longitude: Number(e.target.value) } }))}
+                    onChange={(e) =>
+                      setConfig((v: any) => ({
+                        ...(v ?? {}),
+                        home_location: {
+                          ...(v?.home_location ?? {}),
+                          longitude: Number(e.target.value)
+                        }
+                      }))
+                    }
                   />
                 </div>
               </div>

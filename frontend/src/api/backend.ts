@@ -1,4 +1,4 @@
-import { apiGet, apiPatch } from './client';
+import { apiGet, apiPatch, apiPost } from './client';
 import type { OrbitalObject } from '../types';
 
 export interface PublicConfig {
@@ -28,7 +28,7 @@ export const patchConfig = (body: Record<string, unknown>) => apiPatch<PublicCon
 export const fetchStatus = () => apiGet<StatusPayload>('/api/status');
 export const fetchCategories = () => apiGet<{ categories: string[] }>('/api/categories');
 export const fetchSweeps = () => apiGet<{ sweeps: Array<Record<string, unknown>> }>('/api/sweeps');
-export const runSweepNow = () => apiGet<{ ok: boolean }>('/api/sweeps/run');
+export const runSweepNow = () => apiPost<{ ok: boolean }>('/api/sweeps/run');
 
 export const fetchObjects = (query: Record<string, string | number | undefined>) =>
   apiGet<{ count: number; objects: OrbitalObject[] }>('/api/objects', query);
