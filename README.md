@@ -26,7 +26,7 @@ This project provides a local satellite/orbital-object platform built around N2Y
 
 ### Configure Backend
 
-1. Open `backend/config.json`.
+1. Copy `backend/config.example.json` to `backend/config.json`.
 2. Set `n2yo_api_key`.
 3. Set `proxy_api_key` (this key is used by frontend and API calls as `apiKey` query param).
 4. Adjust `sqlite_db_path`, sweep intervals, and request thresholds if needed.
@@ -54,7 +54,7 @@ npm run dev:frontend
 
 ## Quickstart (Docker Compose)
 
-1. Ensure `backend/config.json` has valid keys.
+1. Ensure `backend/config.json` exists (copied from `backend/config.example.json`) and has valid keys.
 2. Build and run:
 ```bash
 docker compose up --build
