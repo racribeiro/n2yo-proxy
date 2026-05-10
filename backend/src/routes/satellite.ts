@@ -14,7 +14,7 @@ export const buildSatelliteRouter = (ctx: AppContext): Router => {
       const categoryId = Number(req.params.categoryId);
 
       const all = ctx.catalog.list({});
-      const filtered = all.filter((o) => typeof o.satlat === 'number' && typeof o.satlng === 'number').slice(0, 5000);
+      const filtered = all.filter((o) => typeof o.satlat === 'number' && typeof o.satlng === 'number');
 
       res.json({
         info: {

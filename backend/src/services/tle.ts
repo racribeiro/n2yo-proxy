@@ -38,7 +38,7 @@ export class TleService {
     if (!key) throw new StaleDataError('Cannot refresh TLE because N2YO API key is not configured', `satid=${satid}`);
 
     try {
-      const data = await this.n2yo.tle(satid, key);
+      const data = await this.retryUpstream(() => this.n2yo.tle(satid, key));
       this.budget.spend('tle');
 
       const info = data.info ?? {};
@@ -55,6 +55,24 @@ export class TleService {
     } catch (error) {
       throw new StaleDataError('Failed to refresh stale TLE from upstream', String(error));
     }
+  }
+
+  private async retryUpstream<T>(fn: () => Promise<T>, attempts = 3): Promise<T> {
+    let lastError: unknown;
+    for (let i = 0; i < attempts; i++) {
+      try {
+        return await fn();
+      } catch (error) {
+        lastError = error;
+        const code = (error as { code?: string })?.code ?? '';
+        const status = (error as { response?: { status?: number } })?.response?.status ?? 0;
+        const retryable = code === 'ECONNRESET' || code === 'ECONNABORTED' || code === 'ETIMEDOUT' || status === 429 || status >= 500;
+        if (!retryable || i >= attempts - 1) break;
+        const backoffMs = 300 * Math.pow(2, i);
+        await new Promise((resolve) => setTimeout(resolve, backoffMs));
+      }
+    }
+    throw lastError;
   }
 
   async getAll(): Promise<Array<{ satid: number; satname: string; line1: string; line2: string; fetched_at: string; expires_at: string }>> {

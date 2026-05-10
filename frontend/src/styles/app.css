@@ -18,6 +18,27 @@ body {
     radial-gradient(circle at 15% 15%, rgba(77, 122, 255, 0.15), transparent 30%),
     radial-gradient(circle at 80% 20%, rgba(110, 197, 255, 0.12), transparent 25%),
     linear-gradient(150deg, var(--bg0), var(--bg1) 50%, #060a14);
+  scrollbar-color: #2d5f9a #0b1426;
+  scrollbar-width: thin;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: #0b1426;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #2b5f9d, #1e456f);
+  border: 2px solid #0b1426;
+  border-radius: 10px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #3a76bc, #275483);
 }
 
 .app-grid {
@@ -89,6 +110,72 @@ button.secondary { background: #172136; }
   position: relative;
   min-height: 100%;
 }
+
+.sat-hover-tag {
+  position: fixed;
+  transform: translate(-50%, -120%);
+  z-index: 50;
+  max-width: 300px;
+  padding: 4px 8px;
+  border: 1px solid #1e293b;
+  border-radius: 6px;
+  background: rgba(2, 6, 23, 0.92);
+  color: #e2e8f0;
+  font-size: 10px;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+.globe-legend {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  pointer-events: auto;
+  z-index: 30;
+}
+
+.globe-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+  margin: 0 0 2px 0;
+  opacity: 1;
+}
+
+.globe-legend-item.is-off {
+  opacity: 0.35;
+}
+
+.globe-legend-dot {
+  width: 6px;
+  height: 6px;
+  min-width: 6px;
+  border-radius: 9999px;
+  background: #64748b;
+}
+
+.globe-legend-label {
+  font-size: 10px;
+  line-height: 1.1;
+  letter-spacing: 0.08em;
+  color: #94a3b8;
+  text-transform: uppercase;
+}
+
+.globe-legend-dot.sun { background: #fde047; box-shadow: 0 0 6px #fde047; }
+.globe-legend-dot.moon { background: #ccccbb; }
+.globe-legend-dot.leo { background: #22d3ee; }
+.globe-legend-dot.meo { background: #facc15; }
+.globe-legend-dot.geo { background: #ffffff; }
+.globe-legend-dot.not-visible { background: #475569; }
+.globe-legend-dot.iss { background: #fb923c; }
+.globe-legend-dot.user { background: #60a5fa; }
+.globe-legend-dot.selected { background: #34d399; }
 
 @media (max-width: 1024px) {
   .app-grid {

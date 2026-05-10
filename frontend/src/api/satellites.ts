@@ -8,3 +8,8 @@ export const getSatelliteTles = async (): Promise<Array<{ satid: number; name: s
   const payload = await apiGet<{ tles: Array<{ satid: number; satname: string; line1: string; line2: string }> }>('/api/tle');
   return payload.tles.map((t) => ({ satid: t.satid, name: t.satname, line1: t.line1, line2: t.line2 }));
 };
+
+export const getSatelliteTle = async (satid: number): Promise<{ satid: number; name: string; line1: string; line2: string }> => {
+  const payload = await apiGet<{ satid: number; satname: string; line1: string; line2: string }>(`/api/tle/${satid}`);
+  return { satid: payload.satid, name: payload.satname, line1: payload.line1, line2: payload.line2 };
+};

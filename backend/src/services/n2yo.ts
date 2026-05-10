@@ -32,6 +32,8 @@ const newVerbStats = (): VerbStats => ({
   totalLatencyMs: 0
 });
 
+const sanitizeEndpoint = (endpoint: string): string => endpoint.replace(/apiKey=[^&]+/g, 'apiKey=***');
+
 export class N2yoService {
   private readonly client: AxiosInstance;
   private readonly stats: Record<N2yoVerb, VerbStats> = {
@@ -62,7 +64,8 @@ export class N2yoService {
     const startedAt = Date.now();
     const stat = this.stats[verb];
     stat.total += 1;
-    logger.info('n2yo request start', { verb, endpoint, params: paramSummary });
+    const safeEndpoint = sanitizeEndpoint(endpoint);
+    logger.info('n2yo request start', { verb, endpoint: safeEndpoint, params: paramSummary });
     try {
       const response = await this.client.get<T>(endpoint);
       const latencyMs = Date.now() - startedAt;
@@ -70,7 +73,7 @@ export class N2yoService {
       stat.lastStatus = response.status;
       stat.lastLatencyMs = latencyMs;
       stat.totalLatencyMs += latencyMs;
-      logger.info('n2yo request success', { verb, endpoint, status: response.status, latencyMs });
+      logger.info('n2yo request success', { verb, endpoint: safeEndpoint, status: response.status, latencyMs });
       return response.data;
     } catch (error) {
       const latencyMs = Date.now() - startedAt;
@@ -86,7 +89,7 @@ export class N2yoService {
       else stat.otherError += 1;
       logger.warn('n2yo request failed', {
         verb,
-        endpoint,
+        endpoint: safeEndpoint,
         status,
         latencyMs,
         category:

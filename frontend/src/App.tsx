@@ -49,17 +49,27 @@ const App: React.FC = () => {
 
     const payload = await fetchObjects(query);
     setObjects(payload.objects);
-    setSelected(
-      payload.objects
-        .filter((o) => typeof o.satlat === 'number' && typeof o.satlng === 'number')
-        .map((o) => ({
-          id: o.satid,
-          entity_type: 'satellite',
-          name: o.satname,
-          latitude: o.satlat,
-          longitude: o.satlng
-        }))
-    );
+  };
+
+  const toggleObjectOnGlobe = (obj: OrbitalObject) => {
+    if (typeof obj.satlat !== 'number' || typeof obj.satlng !== 'number') return;
+    const key = `satellite:${obj.satid}`;
+    const exists = selected.some((s) => `${s.entity_type}:${s.id}` === key);
+    if (exists) {
+      setSelected((prev) => prev.filter((s) => `${s.entity_type}:${s.id}` !== key));
+      return;
+    }
+    setSelected((prev) => [
+      ...prev,
+      {
+        id: obj.satid,
+        entity_type: 'satellite',
+        name: obj.satname,
+        latitude: obj.satlat,
+        longitude: obj.satlng,
+        altitudeKm: typeof obj.satalt === 'number' ? obj.satalt : undefined
+      }
+    ]);
   };
 
   const refreshAll = async () => {
@@ -221,10 +231,25 @@ const App: React.FC = () => {
               <h2>Filtered Objects ({objects.length})</h2>
               <div className="items">
                 {objects.slice(0, 80).map((o) => (
-                  <div className="item" key={o.satid}>
+                  <button
+                    type="button"
+                    className="item"
+                    key={o.satid}
+                    onClick={() => toggleObjectOnGlobe(o)}
+                    style={{
+                      width: '100%',
+                      textAlign: 'left',
+                      background: selected.some((s) => s.id === o.satid && s.entity_type === 'satellite')
+                        ? 'rgba(16, 185, 129, 0.16)'
+                        : undefined,
+                      border: '0',
+                      cursor: 'pointer'
+                    }}
+                    title="Toggle on globe"
+                  >
                     <span>{o.satname}</span>
                     <span>#{o.satid}</span>
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>

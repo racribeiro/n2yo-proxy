@@ -17,4 +17,5 @@ export interface SelectedItem {
   name: string;
   latitude?: number;
   longitude?: number;
+  altitudeKm?: number;
 }
