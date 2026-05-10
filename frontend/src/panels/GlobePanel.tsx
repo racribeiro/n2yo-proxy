@@ -250,6 +250,13 @@ function orbitSampleStepSeconds(spanSeconds: number, line2: string): number {
   return Math.max(1, Math.ceil(spanSeconds / clampedTarget));
 }
 
+function randomOrbitColor(): number {
+  const hue = Math.floor(Math.random() * 360);
+  const color = new THREE.Color();
+  color.setHSL(hue / 360, 0.8, 0.6);
+  return color.getHex();
+}
+
 function ensurePointCapacity(
   geometry: THREE.BufferGeometry,
   positions: Float32Array<ArrayBufferLike>,
@@ -410,6 +417,7 @@ const GlobePanel: React.FC = () => {
   const renderedAboveRef    = useRef<PickedSatellite[]>([]);
   const renderedTleRef      = useRef<PickedSatellite[]>([]);
   const orbitLinesRef       = useRef<Map<number, THREE.Line>>(new Map());
+  const orbitColorsRef      = useRef<Map<number, number>>(new Map());
   const drawOrbitTrackRef   = useRef<((satid: number) => Promise<void>) | null>(null);
   const orbitRequestRef     = useRef(0);
   const layerStateRef       = useRef({
@@ -906,7 +914,9 @@ const GlobePanel: React.FC = () => {
           if (reqId !== orbitRequestRef.current) return;
           const orbitGeom = new THREE.BufferGeometry();
           orbitGeom.setAttribute('position', new THREE.Float32BufferAttribute(coords, 3));
-          const orbitMat = new THREE.LineBasicMaterial({ color: 0xff4d6d, transparent: true, opacity: 0.9 });
+          const orbitColor = orbitColorsRef.current.get(satid) ?? randomOrbitColor();
+          orbitColorsRef.current.set(satid, orbitColor);
+          const orbitMat = new THREE.LineBasicMaterial({ color: orbitColor, transparent: true, opacity: 0.9 });
           const orbitLine = new THREE.Line(orbitGeom, orbitMat);
           scene.add(orbitLine);
           orbitLinesRef.current.set(satid, orbitLine);
@@ -1069,6 +1079,7 @@ const GlobePanel: React.FC = () => {
         (line.material as THREE.Material).dispose();
       }
       orbitLinesRef.current.clear();
+      orbitColorsRef.current.clear();
       drawOrbitTrackRef.current = null;
       issGrpRef.current    = null;
       userDotRef.current   = null;
@@ -1308,6 +1319,18 @@ const GlobePanel: React.FC = () => {
           altitudeKm,
           source: 'selected'
         } as PickedSatellite;
+
+        if (pickedSatellite?.satid === item.id) {
+          setPickedSatellite((current) => {
+            if (!current || current.satid !== item.id) return current;
+            return {
+              ...current,
+              latitude,
+              longitude,
+              altitudeKm
+            };
+          });
+        }
       }
       if (active) timer = setTimeout(tick, 1500);
     };
@@ -1317,7 +1340,7 @@ const GlobePanel: React.FC = () => {
       active = false;
       clearTimeout(timer);
     };
-  }, [selectedItems, scaleMode]);
+  }, [selectedItems, scaleMode, pickedSatellite?.satid]);
 
   useEffect(() => {
     layerStateRef.current = layers;
@@ -1373,6 +1396,7 @@ const GlobePanel: React.FC = () => {
       line.geometry.dispose();
       (line.material as THREE.Material).dispose();
       orbitLinesRef.current.delete(satid);
+      orbitColorsRef.current.delete(satid);
     }
   }, [selectedItems]);
 
@@ -1446,6 +1470,7 @@ const GlobePanel: React.FC = () => {
                     (line.material as THREE.Material).dispose();
                   }
                   orbitLinesRef.current.clear();
+                  orbitColorsRef.current.clear();
                 }
               }}
             >
