@@ -232,8 +232,6 @@ const App: React.FC = () => {
                 <h2>OpenAPI & Links</h2>
                 <div className="menu-links">
                   <a href={`${getBackendUrl()}/docs`} target="_blank" rel="noreferrer">OpenAPI Docs</a>
-                  <a href={`${getBackendUrl()}/api/status?apiKey=${encodeURIComponent(getProxyApiKey())}`} target="_blank" rel="noreferrer">Status JSON</a>
-                  <a href={`${getBackendUrl()}/api/sweeps?apiKey=${encodeURIComponent(getProxyApiKey())}`} target="_blank" rel="noreferrer">Sweeps JSON</a>
                 </div>
               </div>
             </div>
