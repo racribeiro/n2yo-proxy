@@ -1,2 +1,4 @@
+# Backend config (contains API keys)
+.env
 backend/config.json
 backend/data/

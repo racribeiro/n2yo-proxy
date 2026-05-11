@@ -1,4 +1,6 @@
 import fs from 'node:fs';
+import * as dotenv from 'dotenv';
+dotenv.config();
 import path from 'node:path';
 import { z } from 'zod';
 

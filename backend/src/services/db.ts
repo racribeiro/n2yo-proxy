@@ -143,12 +143,12 @@ export class DbService {
       params.maxAlt = filters.maxAlt;
     }
     if (filters.owner) {
-      where.push('owner = @owner');
-      params.owner = filters.owner;
+      where.push('LOWER(owner) LIKE LOWER(@owner)');
+      params.owner = `%${filters.owner}%`;
     }
     if (filters.country) {
-      where.push('country = @country');
-      params.country = filters.country;
+      where.push('LOWER(country) LIKE LOWER(@country)');
+      params.country = `%${filters.country}%`;
     }
     if (typeof filters.satid === 'number') {
       where.push('satid = @satid');

@@ -1,13 +1,16 @@
 const defaultBackendUrl =
   typeof window !== 'undefined'
-    ? `${window.location.protocol}//${window.location.hostname}:4000`
+    ? window.location.origin
     : 'http://localhost:4000';
 
 export const getBackendUrl = (): string =>
-  localStorage.getItem('backend_url') ?? import.meta.env.VITE_BACKEND_URL ?? defaultBackendUrl;
+  import.meta.env.DEV && import.meta.env.VITE_BACKEND_URL
+    ? import.meta.env.VITE_BACKEND_URL
+    : defaultBackendUrl;
 
 export const setBackendUrl = (value: string): void => {
-  localStorage.setItem('backend_url', value);
+  void value;
+  localStorage.removeItem('backend_url');
 };
 
 export const getProxyApiKey = (): string => localStorage.getItem('proxy_api_key') ?? 'change-me';

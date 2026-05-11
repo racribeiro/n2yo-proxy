@@ -21,6 +21,7 @@ const MOON_RADIUS_EARTH = 1737.4 / EARTH_RADIUS_KM;
 const SUN_RADIUS_EARTH = 695700 / EARTH_RADIUS_KM;
 const MOON_DISTANCE_EARTH = 384400 / EARTH_RADIUS_KM;
 const SUN_DISTANCE_EARTH = 149597870 / EARTH_RADIUS_KM;
+const DEFAULT_CAMERA_DISTANCE = 3.4;
 
 type BrightStar = { name: string; raHours: number; decDeg: number; mag: number };
 const BRIGHT_STARS: BrightStar[] = [
@@ -401,7 +402,8 @@ const GlobePanel: React.FC = () => {
   const satUpdateRef  = useRef<((sats: SatAbove[]) => void) | null>(null);
   const controlsRef   = useRef<OrbitControls | null>(null);
   const orbitRef      = useRef(true); // base orbit preference, read by onUp without stale closure
-  const selectedMarkersRef  = useRef<Map<string, THREE.Group>>(new Map());
+  const selectedSatidsRef   = useRef<Set<number>>(new Set());
+  const selectedMarkersRef  = useRef<Map<number, THREE.Group>>(new Map());
   const sceneRef            = useRef<THREE.Scene | null>(null);
   const sunMeshRef          = useRef<THREE.Mesh | null>(null);
   const sunDotRef           = useRef<THREE.Mesh | null>(null);
@@ -416,6 +418,7 @@ const GlobePanel: React.FC = () => {
   const visibleTlesRef      = useRef<TleEntry[]>([]);
   const renderedAboveRef    = useRef<PickedSatellite[]>([]);
   const renderedTleRef      = useRef<PickedSatellite[]>([]);
+  const selectedItemsRef    = useRef<any[]>([]);
   const orbitLinesRef       = useRef<Map<number, THREE.Line>>(new Map());
   const orbitColorsRef      = useRef<Map<number, number>>(new Map());
   const drawOrbitTrackRef   = useRef<((satid: number) => Promise<void>) | null>(null);
@@ -515,19 +518,118 @@ const GlobePanel: React.FC = () => {
     };
   };
 
+  const selectedItemToPicked = (item: any): PickedSatellite | null => {
+    if (item.entity_type !== 'satellite') return null;
+    const tle = tleBySatidRef.current.get(item.id);
+    const live = tle ? propagateNowFromTle(tle) : null;
+    const latitude = live?.latitude ?? item.latitude;
+    const longitude = live?.longitude ?? item.longitude;
+    const altitudeKm = live?.altitudeKm ?? (typeof item.altitudeKm === 'number' ? item.altitudeKm : 0);
+    if (typeof latitude !== 'number' || typeof longitude !== 'number') return null;
+    return {
+      satid: item.id,
+      satname: item.name,
+      latitude,
+      longitude,
+      altitudeKm,
+      source: live ? 'tle' : 'selected'
+    };
+  };
+
+  const syncSelectedMarkers = () => {
+    const scene = sceneRef.current;
+    if (!scene) return;
+
+    const selectedIds = new Set(
+      selectedItemsRef.current.filter((item: any) => item.entity_type === 'satellite').map((item: any) => item.id)
+    );
+
+    for (const [satid, marker] of selectedMarkersRef.current.entries()) {
+      if (selectedIds.has(satid)) continue;
+      scene.remove(marker);
+      marker.traverse((child) => {
+        const mesh = child as THREE.Mesh;
+        mesh.geometry?.dispose?.();
+        const material = mesh.material as THREE.Material | THREE.Material[] | undefined;
+        if (Array.isArray(material)) material.forEach((m) => m.dispose());
+        else material?.dispose?.();
+      });
+      selectedMarkersRef.current.delete(satid);
+    }
+
+    for (const item of selectedItemsRef.current) {
+      const picked = selectedItemToPicked(item);
+      if (!picked) continue;
+
+      let marker = selectedMarkersRef.current.get(picked.satid);
+      if (!marker) {
+        marker = new THREE.Group();
+        marker.renderOrder = 80;
+
+        const core = new THREE.Mesh(
+          new THREE.SphereGeometry(0.028, 16, 16),
+          new THREE.MeshBasicMaterial({ color: 0x34d399, depthTest: false })
+        );
+        core.renderOrder = 82;
+        marker.add(core);
+
+        const ring = new THREE.Mesh(
+          new THREE.RingGeometry(0.055, 0.085, 48),
+          new THREE.MeshBasicMaterial({
+            color: 0x34d399,
+            transparent: true,
+            opacity: 0.9,
+            side: THREE.DoubleSide,
+            depthTest: false
+          })
+        );
+        ring.renderOrder = 81;
+        marker.add(ring);
+
+        const halo = new THREE.Mesh(
+          new THREE.SphereGeometry(0.045, 16, 16),
+          new THREE.MeshBasicMaterial({
+            color: 0x34d399,
+            transparent: true,
+            opacity: 0.18,
+            depthTest: false
+          })
+        );
+        halo.renderOrder = 80;
+        marker.add(halo);
+
+        scene.add(marker);
+        selectedMarkersRef.current.set(picked.satid, marker);
+      }
+
+      marker.userData.pickedSatellite = picked;
+      const radius = scaleModeRef.current === 'real' ? altToRadiusReal(picked.altitudeKm) : altToRadius(picked.altitudeKm);
+      marker.position.copy(latLonToVec3(picked.latitude, picked.longitude, radius));
+      marker.visible = layerStateRef.current.selected;
+    }
+  };
+
   // ── Three.js scene setup ───────────────────────────────────────────────────
   useEffect(() => {
     const el = mountRef.current;
     if (!el) return;
 
+    const getViewportSize = () => {
+      const rect = el.getBoundingClientRect();
+      const width = Math.max(1, Math.round(rect.width));
+      const height = Math.max(1, Math.round(rect.height));
+      return { width, height };
+    };
+    const initialSize = getViewportSize();
+
     const scene  = new THREE.Scene();
     sceneRef.current = scene;
-    const camera = new THREE.PerspectiveCamera(45, el.clientWidth / el.clientHeight, 0.1, 100000);
-    camera.position.z = 2.6;
+    const camera = new THREE.PerspectiveCamera(45, initialSize.width / initialSize.height, 0.1, 100000);
+    camera.position.z = DEFAULT_CAMERA_DISTANCE;
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setPixelRatio(window.devicePixelRatio);
-    renderer.setSize(el.clientWidth, el.clientHeight);
+    renderer.setSize(initialSize.width, initialSize.height, false);
     renderer.setClearColor(0x000000, 0);
     el.appendChild(renderer.domElement);
 
@@ -580,9 +682,9 @@ const GlobePanel: React.FC = () => {
 
     // Earth + Moon textures (real texture maps)
     const textureLoader = new THREE.TextureLoader();
-    const earthTex = textureLoader.load('https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg');
+    const earthTex = textureLoader.load('/textures/planets/earth_atmos_2048.jpg');
     earthTex.colorSpace = THREE.SRGBColorSpace;
-    const moonTex = textureLoader.load('https://threejs.org/examples/textures/planets/moon_1024.jpg');
+    const moonTex = textureLoader.load('/textures/planets/moon_1024.jpg');
     moonTex.colorSpace = THREE.SRGBColorSpace;
     scene.add(new THREE.Mesh(
       new THREE.SphereGeometry(1, 64, 64),
@@ -701,22 +803,39 @@ const GlobePanel: React.FC = () => {
           const lookAngles = satellite.ecfToLookAngles(obsGd, satellite.eciToEcf(pv.position as satellite.EciVec3<number>, gmst));
           const visible = lookAngles.elevation > 0;
 
+          const isSelected = selectedSatidsRef.current.has(tles[i].satid) && layerStateRef.current.selected;
           if (visible) {
             // Color by altitude tier (same as N2YO)
             if (altKm < 2000) {
               if (!layerStateRef.current.leo) continue;
-              tleColors[count * 3] = 0.5; tleColors[count * 3 + 1] = 0.85; tleColors[count * 3 + 2] = 1.0;
+              if (isSelected) {
+                tleColors[count * 3] = 0.2; tleColors[count * 3 + 1] = 0.95; tleColors[count * 3 + 2] = 0.55;
+              } else {
+                tleColors[count * 3] = 0.5; tleColors[count * 3 + 1] = 0.85; tleColors[count * 3 + 2] = 1.0;
+              }
             } else if (altKm < 20000) {
               if (!layerStateRef.current.meo) continue;
-              tleColors[count * 3] = 1.0; tleColors[count * 3 + 1] = 0.9;  tleColors[count * 3 + 2] = 0.4;
+              if (isSelected) {
+                tleColors[count * 3] = 0.2; tleColors[count * 3 + 1] = 0.95; tleColors[count * 3 + 2] = 0.55;
+              } else {
+                tleColors[count * 3] = 1.0; tleColors[count * 3 + 1] = 0.9;  tleColors[count * 3 + 2] = 0.4;
+              }
             } else {
               if (!layerStateRef.current.geo) continue;
-              tleColors[count * 3] = 1.0; tleColors[count * 3 + 1] = 1.0;  tleColors[count * 3 + 2] = 1.0;
+              if (isSelected) {
+                tleColors[count * 3] = 0.2; tleColors[count * 3 + 1] = 0.95; tleColors[count * 3 + 2] = 0.55;
+              } else {
+                tleColors[count * 3] = 1.0; tleColors[count * 3 + 1] = 1.0;  tleColors[count * 3 + 2] = 1.0;
+              }
             }
           } else {
             if (!layerStateRef.current.notVisible) continue;
             // Non-visible: dim gray
-            tleColors[count * 3] = 0.3; tleColors[count * 3 + 1] = 0.3; tleColors[count * 3 + 2] = 0.3;
+            if (isSelected) {
+              tleColors[count * 3] = 0.2; tleColors[count * 3 + 1] = 0.95; tleColors[count * 3 + 2] = 0.55;
+            } else {
+              tleColors[count * 3] = 0.3; tleColors[count * 3 + 1] = 0.3; tleColors[count * 3 + 2] = 0.3;
+            }
           }
           renderedTleRef.current.push({
             satid: tles[i].satid,
@@ -766,12 +885,25 @@ const GlobePanel: React.FC = () => {
         satPositions[count * 3] = v.x;
         satPositions[count * 3 + 1] = v.y;
         satPositions[count * 3 + 2] = v.z;
+        const isSelected = selectedSatidsRef.current.has(sats[i].satid) && layerStateRef.current.selected;
         if (satalt < 2000) {
-          satColors[count * 3] = 0.5; satColors[count * 3 + 1] = 0.85; satColors[count * 3 + 2] = 1.0;
+          if (isSelected) {
+            satColors[count * 3] = 0.2; satColors[count * 3 + 1] = 0.95; satColors[count * 3 + 2] = 0.55;
+          } else {
+            satColors[count * 3] = 0.5; satColors[count * 3 + 1] = 0.85; satColors[count * 3 + 2] = 1.0;
+          }
         } else if (satalt < 20000) {
-          satColors[count * 3] = 1.0; satColors[count * 3 + 1] = 0.9; satColors[count * 3 + 2] = 0.4;
+          if (isSelected) {
+            satColors[count * 3] = 0.2; satColors[count * 3 + 1] = 0.95; satColors[count * 3 + 2] = 0.55;
+          } else {
+            satColors[count * 3] = 1.0; satColors[count * 3 + 1] = 0.9; satColors[count * 3 + 2] = 0.4;
+          }
         } else {
-          satColors[count * 3] = 1.0; satColors[count * 3 + 1] = 1.0; satColors[count * 3 + 2] = 1.0;
+          if (isSelected) {
+            satColors[count * 3] = 0.2; satColors[count * 3 + 1] = 0.95; satColors[count * 3 + 2] = 0.55;
+          } else {
+            satColors[count * 3] = 1.0; satColors[count * 3 + 1] = 1.0; satColors[count * 3 + 2] = 1.0;
+          }
         }
         renderedAboveRef.current.push({
           satid: sats[i].satid,
@@ -859,6 +991,12 @@ const GlobePanel: React.FC = () => {
         userRingMat.opacity = 0.6 * (1 - userT);
       }
 
+      for (const marker of selectedMarkersRef.current.values()) {
+        if (!marker.visible) continue;
+        const ring = marker.children[1] as THREE.Mesh | undefined;
+        ring?.lookAt(camera.position);
+      }
+
       renderer.render(scene, camera);
     };
     animate();
@@ -936,25 +1074,6 @@ const GlobePanel: React.FC = () => {
       pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
       pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
       meshRaycaster.setFromCamera(pointer, camera);
-
-      // Priority 1: explicit selected markers (exact identity match)
-      const markerMeshes: THREE.Object3D[] = [];
-      for (const grp of selectedMarkersRef.current.values()) {
-        markerMeshes.push(...grp.children);
-      }
-      if (markerMeshes.length > 0) {
-        const markerHit = meshRaycaster.intersectObjects(markerMeshes, true)[0];
-        if (markerHit) {
-          let node: THREE.Object3D | null = markerHit.object;
-          while (node && !node.userData?.pickedSatellite) node = node.parent;
-          const picked = node?.userData?.pickedSatellite as PickedSatellite | undefined;
-          if (picked) {
-            const livePicked = withLivePosition(picked);
-            toggleSelectedFromGlobe(livePicked);
-            return;
-          }
-        }
-      }
 
       let bestItem: PickedSatellite | null = null;
       let bestDistSq = Number.POSITIVE_INFINITY;
@@ -1044,24 +1163,45 @@ const GlobePanel: React.FC = () => {
     renderer.domElement.addEventListener('pointermove', onPointerMovePick);
 
     // Resize
-    const resize = () => {
-      const width = Math.max(1, el.clientWidth);
-      const height = Math.max(1, el.clientHeight);
+    let resizeRaf: number | null = null;
+    const resizeNow = () => {
+      resizeRaf = null;
+      const { width, height } = getViewportSize();
+      const canvas = renderer.domElement;
+      const pixelRatio = window.devicePixelRatio || 1;
+      const targetBufferWidth = Math.floor(width * pixelRatio);
+      const targetBufferHeight = Math.floor(height * pixelRatio);
+      if (
+        canvas.width === targetBufferWidth &&
+        canvas.height === targetBufferHeight &&
+        Math.abs(camera.aspect - width / height) < 0.0001
+      ) {
+        return;
+      }
+
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
-      renderer.setPixelRatio(window.devicePixelRatio || 1);
+      renderer.setPixelRatio(pixelRatio);
       renderer.setSize(width, height, false);
+    };
+    const resize = () => {
+      if (resizeRaf !== null) return;
+      resizeRaf = requestAnimationFrame(resizeNow);
     };
     const ro = new ResizeObserver(() => resize());
     const onWindowResize = () => resize();
     ro.observe(el);
+    if (el.parentElement) ro.observe(el.parentElement);
     window.addEventListener('resize', onWindowResize);
+    window.visualViewport?.addEventListener('resize', onWindowResize);
     resize();
 
     return () => {
       cancelAnimationFrame(rafId);
+      if (resizeRaf !== null) cancelAnimationFrame(resizeRaf);
       ro.disconnect();
       window.removeEventListener('resize', onWindowResize);
+      window.visualViewport?.removeEventListener('resize', onWindowResize);
       renderer.domElement.removeEventListener('pointerdown', onDown);
       renderer.domElement.removeEventListener('pointerup',   onUp);
       renderer.domElement.removeEventListener('pointerdown', onPointerDownPick);
@@ -1080,6 +1220,17 @@ const GlobePanel: React.FC = () => {
       }
       orbitLinesRef.current.clear();
       orbitColorsRef.current.clear();
+      for (const marker of selectedMarkersRef.current.values()) {
+        scene.remove(marker);
+        marker.traverse((child) => {
+          const mesh = child as THREE.Mesh;
+          mesh.geometry?.dispose?.();
+          const material = mesh.material as THREE.Material | THREE.Material[] | undefined;
+          if (Array.isArray(material)) material.forEach((m) => m.dispose());
+          else material?.dispose?.();
+        });
+      }
+      selectedMarkersRef.current.clear();
       drawOrbitTrackRef.current = null;
       issGrpRef.current    = null;
       userDotRef.current   = null;
@@ -1093,7 +1244,6 @@ const GlobePanel: React.FC = () => {
       moonDotRef.current   = null;
       satPointsRef.current = null;
       tlePointsRef.current = null;
-      selectedMarkersRef.current.clear();
       el.removeChild(renderer.domElement);
     };
   }, []);
@@ -1222,6 +1372,7 @@ const GlobePanel: React.FC = () => {
       if (visibleAboveRef.current.length > 0 && satUpdateRef.current) {
         satUpdateRef.current(visibleAboveRef.current);
       }
+      syncSelectedMarkers();
       if (active) timer = setTimeout(tick, TLE_RECOMPUTE_MS);
     };
 
@@ -1229,106 +1380,18 @@ const GlobePanel: React.FC = () => {
     return () => { active = false; clearTimeout(timer); };
   }, [userPos]);
 
-  // ── Selected items globe markers ──────────────────────────────────────────
-  useEffect(() => {
-    const scene = sceneRef.current;
-    if (!scene) return;
-
-    const existing = selectedMarkersRef.current;
-    const geoItems = selectedItems.filter(i => i.latitude != null && i.longitude != null);
-    const nextKeys  = new Set(geoItems.map(i => `${i.entity_type}:${i.id}`));
-
-    // Remove markers for deselected items
-    for (const [k, grp] of existing.entries()) {
-      if (!nextKeys.has(k)) {
-        scene.remove(grp);
-        existing.delete(k);
-      }
-    }
-
-    // Add markers for newly selected items
-    for (const item of geoItems) {
-      const k = `${item.entity_type}:${item.id}`;
-      const tle = tleBySatidRef.current.get(item.id);
-      const live = tle ? propagateNowFromTle(tle) : null;
-      const latitude = live?.latitude ?? item.latitude!;
-      const longitude = live?.longitude ?? item.longitude!;
-      const altitudeKm = live?.altitudeKm ?? (typeof item.altitudeKm === 'number' ? item.altitudeKm : 0);
-      const radius = scaleModeRef.current === 'real' ? altToRadiusReal(altitudeKm) : altToRadius(altitudeKm);
-
-      if (existing.has(k)) {
-        const grp = existing.get(k)!;
-        grp.userData.pickedSatellite = {
-          satid: item.id,
-          satname: item.name,
-          latitude,
-          longitude,
-          altitudeKm,
-          source: 'selected'
-        } as PickedSatellite;
-        grp.position.copy(latLonToVec3(latitude, longitude, radius));
-        grp.visible = layerStateRef.current.selected;
-        continue;
-      }
-
-      const grp = new THREE.Group();
-      grp.userData.pickedSatellite = {
-        satid: item.id,
-        satname: item.name,
-        latitude,
-        longitude,
-        altitudeKm,
-        source: 'selected'
-      } as PickedSatellite;
-      const markerMesh = new THREE.Mesh(
-        new THREE.SphereGeometry(0.01, 10, 10),
-        new THREE.MeshBasicMaterial({ color: 0x00e87a }),
-      );
-      markerMesh.scale.setScalar(pickedSatellite?.satid === item.id ? 1.8 : 1);
-      grp.add(markerMesh);
-      grp.position.copy(latLonToVec3(latitude, longitude, radius));
-      grp.visible = layerStateRef.current.selected;
-      scene.add(grp);
-      existing.set(k, grp);
-    }
-  }, [selectedItems, scaleMode, pickedSatellite?.satid]);
-
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
     let active = true;
 
     const tick = () => {
-      const existing = selectedMarkersRef.current;
-      for (const item of selectedItems) {
-        if (item.latitude == null || item.longitude == null) continue;
-        const key = `${item.entity_type}:${item.id}`;
-        const grp = existing.get(key);
-        if (!grp) continue;
-        const tle = tleBySatidRef.current.get(item.id);
+      if (pickedSatellite) {
+        const tle = tleBySatidRef.current.get(pickedSatellite.satid);
         const live = tle ? propagateNowFromTle(tle) : null;
-        const latitude = live?.latitude ?? item.latitude;
-        const longitude = live?.longitude ?? item.longitude;
-        const altitudeKm = live?.altitudeKm ?? (typeof item.altitudeKm === 'number' ? item.altitudeKm : 0);
-        const radius = scaleModeRef.current === 'real' ? altToRadiusReal(altitudeKm) : altToRadius(altitudeKm);
-        grp.position.copy(latLonToVec3(latitude, longitude, radius));
-        grp.userData.pickedSatellite = {
-          satid: item.id,
-          satname: item.name,
-          latitude,
-          longitude,
-          altitudeKm,
-          source: 'selected'
-        } as PickedSatellite;
-
-        if (pickedSatellite?.satid === item.id) {
+        if (live) {
           setPickedSatellite((current) => {
-            if (!current || current.satid !== item.id) return current;
-            return {
-              ...current,
-              latitude,
-              longitude,
-              altitudeKm
-            };
+            if (!current || current.satid !== pickedSatellite.satid) return current;
+            return { ...current, latitude: live.latitude, longitude: live.longitude, altitudeKm: live.altitudeKm };
           });
         }
       }
@@ -1340,7 +1403,7 @@ const GlobePanel: React.FC = () => {
       active = false;
       clearTimeout(timer);
     };
-  }, [selectedItems, scaleMode, pickedSatellite?.satid]);
+  }, [scaleMode, pickedSatellite?.satid]);
 
   useEffect(() => {
     layerStateRef.current = layers;
@@ -1350,7 +1413,7 @@ const GlobePanel: React.FC = () => {
     if (sunDotRef.current) sunDotRef.current.visible = layers.sun;
     if (moonMeshRef.current) moonMeshRef.current.visible = layers.moon;
     if (moonDotRef.current) moonDotRef.current.visible = layers.moon;
-    for (const grp of selectedMarkersRef.current.values()) grp.visible = layers.selected;
+    for (const marker of selectedMarkersRef.current.values()) marker.visible = layers.selected;
     if (visibleAboveRef.current.length > 0) satUpdateRef.current?.(visibleAboveRef.current);
     if (visibleTlesRef.current.length > 0) {
       const { lat, lon } = userLatLon.current;
@@ -1369,7 +1432,21 @@ const GlobePanel: React.FC = () => {
       drawOrbitTrackRef.current?.(pickedSatellite.satid);
       setPickedSatellite({ ...pickedSatellite });
     }
+    syncSelectedMarkers();
   }, [scaleMode]);
+
+  useEffect(() => {
+    selectedItemsRef.current = selectedItems as any[];
+    selectedSatidsRef.current = new Set(
+      selectedItems.filter((s) => s.entity_type === 'satellite').map((s) => s.id)
+    );
+    if (visibleAboveRef.current.length > 0) satUpdateRef.current?.(visibleAboveRef.current);
+    if (visibleTlesRef.current.length > 0) {
+      const { lat, lon } = userLatLon.current;
+      tleUpdateRef.current?.(visibleTlesRef.current, lat, lon);
+    }
+    syncSelectedMarkers();
+  }, [selectedItems]);
 
   useEffect(() => {
     orbitPastSecondsRef.current = orbitPastSeconds;
@@ -1400,10 +1477,18 @@ const GlobePanel: React.FC = () => {
     }
   }, [selectedItems]);
 
+  useEffect(() => {
+    if (!drawOrbitTrackRef.current) return;
+    for (const item of selectedItems) {
+      if (item.entity_type !== 'satellite') continue;
+      drawOrbitTrackRef.current(item.id);
+    }
+  }, [selectedItems, orbitPastSeconds, orbitFutureSeconds]);
+
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100%', minHeight: '100%', background: '#05080f', userSelect: 'none' }}>
-      <div ref={mountRef} style={{ width: '100%', height: '100%' }} />
+    <div className="globe-stage" style={{ background: '#05080f', userSelect: 'none' }}>
+      <div ref={mountRef} className="globe-mount" />
 
       {/* Legend — top left */}
       <div className="globe-legend">
